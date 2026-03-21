@@ -60,6 +60,37 @@ The full-featured codebase lives at `/Volumes/OpenClaw/projects/falcons/`. When 
 - Create feature branches, push, open PR to main
 - Owner merges — never merge PRs yourself
 
+## PR Pre-flight — Hard Rules
+
+Before opening any PR, Tron must:
+
+1. **Run `npm test`** — all tests must pass. Do not open a PR with failing tests.
+2. **Tests written or changed** — every PR that touches logic must include at least one new or updated test covering the critical path. No exceptions.
+3. **`npm run build` must pass.**
+4. **PR description must include:**
+   - **Steps to reproduce** — exact, numbered steps a non-technical person can follow to see the bug or verify the feature. Include specific URLs, button names, and what to look for.
+   - **Expected behavior** — what should happen after the fix/feature, stated precisely.
+   - **Test plan checklist** — specific things to click/check in the live site to confirm it works.
+
+### PR Description Template
+
+```
+## What changed
+[1-3 bullets on what was changed and why]
+
+## Steps to reproduce (before this fix)
+1. Go to [exact URL]
+2. [Exact action]
+3. [What you see that is wrong]
+
+## Expected behavior
+[Exactly what should happen instead]
+
+## Test plan
+- [ ] [Specific thing to check at specific URL]
+- [ ] [Another specific check]
+```
+
 ## Testing Standards
 - Every PR needs tests. No exceptions.
 - `npm run build` must pass before any PR.
