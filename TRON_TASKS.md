@@ -8,6 +8,55 @@ Every chunk = one PR. Tests required. Build must pass.
 
 ---
 
+## Chunk 0 — Marketing landing page with interactive feature picker
+
+**Goal:** A polished public landing page at `/` that sells the platform to sports org admins. Visitors can browse all features and check off the ones they care about — then book a demo with their selection pre-filled.
+
+### What to build
+
+**Interactive feature picker:**
+- Grid of feature cards, each with a checkbox toggle. Categories:
+  - **Registration & Payments** — Online registration form, Stripe payments, installment plans, e-transfer support, credit system
+  - **Admin Tools** — Session management, attendance tracking, coach assignments, expense tracking, payment exports
+  - **Communication** — Day-before email reminders, bulk email to session registrants, in-app news/announcements
+  - **Player & Parent Portal** — Player accounts, RSVP / availability, calendar sync, payment history
+  - **Coach Tools** — Coach login, mobile check-in, roster view
+  - **Compliance** — Waiver collection and storage
+- Selecting features highlights them (gold border, checkmark). Deselecting unchecks.
+- Sticky "Book a Demo" CTA button shows count of selected features: "Book a Demo (6 features selected)"
+
+**Hero section:**
+- Headline: something like "Run your sports program. Not spreadsheets."
+- Sub: Flat monthly fee, no per-transaction platform cuts, works for any sport
+- Two CTAs: "See the features" (scrolls to picker) and "Book a Demo"
+
+**Pricing section:**
+- Single plan: $149/month, all features included, no setup fee
+- List of what's included
+- "Start with what you need — add more anytime"
+
+**Demo booking form (update existing `/demo` page):**
+- Pre-populate selected features from the picker via URL params (e.g., `?features=registration,payments,reminders`)
+- Fields: Org name, sport, your name, email, phone (optional), message
+- On submit: save to Supabase `demo_requests` table (create if needed: id, org_name, sport, contact_name, email, phone, features_selected, message, created_at)
+- Show confirmation: "We'll be in touch within 1 business day."
+
+**Design:**
+- Match existing design tokens (dark bg #0d0d0f, gold #d4af37, card bg #16161a)
+- Mobile responsive — feature cards stack to single column on mobile
+- Smooth scroll between sections
+
+**Tests:**
+- Feature picker renders all features
+- Selecting a feature adds it to the selected set; deselecting removes it
+- Demo form submits with correct features list in payload
+- Demo API route saves to Supabase with all required fields
+- Demo API rejects missing email or org_name (400)
+
+**Note:** The product name may change — use a placeholder like `[PRODUCT_NAME]` in all copy so it can be swapped easily when the name is decided.
+
+---
+
 ## Chunk 1 — Wire up registration to Supabase + full form
 
 **Goal:** Players can actually register for a session at `/{org}/register`. Right now the form POSTs to an empty URL and the API just logs to console.
