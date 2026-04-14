@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseServer } from "@/lib/supabase/server";
+import { makeId } from "@/lib/id";
 
 /**
  * POST /api/org/register
@@ -14,6 +16,17 @@ interface RegisterBody {
   full_name: string;
   email: string;
   phone?: string;
+  guardian_name?: string;
+  birth_year?: string;
+  signup_type?: string;
+  session_id?: string;
+  participant_role?: string;
+  jersey_1?: string;
+  jersey_2?: string;
+  jersey_3?: string;
+  tshirt_size?: string;
+  sweatshirt_size?: string;
+  comments?: string;
   /** If the caller supplies an org_id it must match the middleware-injected one. */
   org_id?: string;
 }
@@ -36,7 +49,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { full_name, email, phone, org_id } = body as RegisterBody;
+  const {
+    full_name,
+    email,
+    phone,
+    guardian_name,
+    birth_year,
+    signup_type,
+    session_id,
+    participant_role,
+    jersey_1,
+    jersey_2,
+    jersey_3,
+    tshirt_size,
+    sweatshirt_size,
+    comments,
+    org_id,
+  } = body as RegisterBody;
 
   // Guard: reject cross-org data injection attempts
   if (org_id !== undefined && org_id !== orgId) {
@@ -57,16 +86,40 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // In production: persist to Supabase with org_id scoping.
-  // The service-role client is used here (bypasses RLS), and org_id is
-  // set explicitly from the trusted middleware header — never from the body.
-  console.log("[org/register] New registration:", {
+  const sb = getSupabaseServer();
+  const regId = makeId("REG");
+
+  const row = {
+    id: regId,
     org_id: orgId,
     full_name: full_name.trim(),
-    email: email.trim(),
+    email: email.trim().toLowerCase(),
     phone: phone?.trim() ?? "",
-    registeredAt: new Date().toISOString(),
-  });
+    guardian_name: guardian_name?.trim() ?? "",
+    birth_year: birth_year?.trim() ?? "",
+    signup_type: signup_type?.trim() ?? "",
+    session_id: session_id ?? "",
+    participant_role: participant_role?.trim() ?? "",
+    jersey_1: jersey_1?.trim() ?? "",
+    jersey_2: jersey_2?.trim() ?? "",
+    jersey_3: jersey_3?.trim() ?? "",
+    tshirt_size: tshirt_size?.trim() ?? "",
+    sweatshirt_size: sweatshirt_size?.trim() ?? "",
+    comments: comments?.trim() ?? "",
+    paid_status: "No",
+    approval_status: "pending",
+    timestamp: new Date().toISOString(),
+  };
 
-  return NextResponse.json({ ok: true }, { status: 200 });
+  const { error } = await sb.from("registrations").insert(row);
+
+  if (error) {
+    console.error("[org/register] Supabase insert error:", error.message);
+    return NextResponse.json(
+      { error: "Registration failed. Please try again." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ok: true, registrationId: regId }, { status: 201 });
 }

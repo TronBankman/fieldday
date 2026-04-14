@@ -15,7 +15,7 @@ OpenClaw owns this project end-to-end.
 - **Payments:** Stripe — Phase 2
 - **Styling:** Tailwind CSS v4
 - **Auth:** bcryptjs + jsonwebtoken (custom) — Phase 2
-- **Deployment:** Vercel (planned)
+- **Deployment:** Vercel — **manual deploys only** (auto-deploy disabled — never deploy without explicit owner instruction)
 
 ## Current Phase
 Building — Phase 1 complete (marketing landing page + demo form).
