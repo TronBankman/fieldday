@@ -39,6 +39,43 @@ export function verifyAdminToken(
   }
 }
 
+/**
+ * Create a player JWT scoped to an org.
+ * `sub` = playerId, `org` = orgId, `email` = player email.
+ */
+export function createPlayerToken(
+  orgId: string,
+  playerId: string,
+  email: string
+): string {
+  return jwt.sign(
+    { sub: playerId, org: orgId, email, role: "player" },
+    getJwtSecret(),
+    { expiresIn: TOKEN_EXPIRY }
+  );
+}
+
+/**
+ * Verify a player JWT and extract claims.
+ * Returns null if the token is invalid or expired.
+ */
+export function verifyPlayerToken(
+  token: string
+): { sub: string; org: string; email: string; role: string } | null {
+  try {
+    const decoded = jwt.verify(token, getJwtSecret()) as {
+      sub: string;
+      org: string;
+      email: string;
+      role: string;
+    };
+    if (decoded.role !== "player") return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyPassword(
   plaintext: string,
   stored: string

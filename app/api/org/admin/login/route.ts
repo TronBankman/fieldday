@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminToken, verifyPassword } from "@/lib/auth";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { resolveOrgId } from "@/lib/resolve-org";
 
 export async function POST(req: NextRequest) {
-  const orgId = req.headers.get("x-fieldday-org-id");
+  const orgId = await resolveOrgId(req);
   if (!orgId) {
     return NextResponse.json(
       { error: "Organization not found" },

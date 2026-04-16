@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import { makeId } from "@/lib/id";
+import { resolveOrgId } from "@/lib/resolve-org";
 
 /**
  * POST /api/org/register
  *
  * Org-scoped registration endpoint. The org is identified by the
- * x-fieldday-org-id header injected by the org middleware.
+ * x-fieldday-org-id header (injected by proxy) or x-fieldday-org-slug
+ * header (sent by client-side fetches).
  *
  * Rejects submissions that attempt to specify a different org_id
  * (cross-org data injection guard).
@@ -32,8 +34,8 @@ interface RegisterBody {
 }
 
 export async function POST(req: NextRequest) {
-  // Middleware injects the resolved org ID — treat it as authoritative
-  const orgId = req.headers.get("x-fieldday-org-id");
+  // Resolved from proxy header or client-supplied slug
+  const orgId = await resolveOrgId(req);
 
   if (!orgId) {
     return NextResponse.json(

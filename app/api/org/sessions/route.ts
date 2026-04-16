@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { resolveOrgId } from "@/lib/resolve-org";
 
 /**
  * GET /api/org/sessions
  *
  * Returns upcoming sessions for the org identified by
- * the x-fieldday-org-id header (injected by middleware).
+ * the x-fieldday-org-id header (injected by proxy) or
+ * x-fieldday-org-slug header (sent by client-side fetches).
  */
 export async function GET(req: NextRequest) {
-  const orgId = req.headers.get("x-fieldday-org-id");
+  const orgId = await resolveOrgId(req);
 
   if (!orgId) {
     return NextResponse.json(
