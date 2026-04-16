@@ -153,12 +153,10 @@ export async function POST(req: NextRequest) {
       cancel_url: `${appUrl}/${orgSlug}/checkout/result?status=cancelled&reg=${registrationId}`,
     };
 
-    // If the org has a connected Stripe account, use it
-    if (org.stripe_account_id) {
-      sessionParams.stripe_account = org.stripe_account_id;
-    }
-
-    const checkoutSession = await stripe.checkout.sessions.create(sessionParams);
+    const checkoutSession = await stripe.checkout.sessions.create(
+      sessionParams,
+      org.stripe_account_id ? { stripeAccount: org.stripe_account_id } : undefined
+    );
 
     // Record the pending payment
     await sb.from("payments").insert({
