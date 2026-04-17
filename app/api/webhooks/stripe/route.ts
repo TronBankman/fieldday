@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { sendPaymentConfirmation } from "@/lib/email";
 import Stripe from "stripe";
 
 /**
@@ -139,4 +140,49 @@ async function handleCheckoutCompleted(event: Stripe.Event) {
       .eq("registration_id", registrationId)
       .eq("status", "active");
   }
+
+  // Fire-and-forget: send payment confirmation / receipt email
+  (async () => {
+    try {
+      const { data: reg } = await sb
+        .from("registrations")
+        .select("email, full_name, signup_type, session_id")
+        .eq("id", registrationId)
+        .single();
+      if (!reg?.email || !orgId) return;
+
+      const { data: org } = await sb
+        .from("organizations")
+        .select("name, slug, primary_color, contact_email")
+        .eq("id", orgId)
+        .single();
+      if (!org) return;
+
+      let sessionName = reg.signup_type || "";
+      if (reg.session_id) {
+        const { data: ses } = await sb
+          .from("sessions")
+          .select("name")
+          .eq("id", reg.session_id)
+          .single();
+        if (ses?.name) sessionName = ses.name;
+      }
+
+      await sendPaymentConfirmation(
+        reg.email,
+        reg.full_name,
+        sessionName,
+        amountPaid,
+        {
+          name: org.name,
+          slug: org.slug,
+          primaryColor: org.primary_color,
+          contactEmail: org.contact_email,
+        },
+        { receiptId: session.id }
+      );
+    } catch (emailErr) {
+      console.error("[stripe-webhook] Payment confirmation email failed:", emailErr);
+    }
+  })();
 }

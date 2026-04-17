@@ -115,3 +115,56 @@ export async function sendRegistrationConfirmation(
 
   return sendEmail(to, `Registration received — ${org.name}`, html);
 }
+
+/**
+ * Payment confirmation / receipt sent after successful Stripe checkout.
+ * Includes amount, session name, payment date, and a link back to the
+ * participant's account so they can see their full payment history.
+ */
+export async function sendPaymentConfirmation(
+  to: string,
+  participantName: string,
+  sessionName: string,
+  amountCents: number,
+  org: OrgContext,
+  opts: { receiptId?: string; paidAt?: Date } = {}
+): Promise<{ success: boolean; error?: string }> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://fieldday.app";
+  const color = org.primaryColor || "#2563eb";
+  const dollars = (amountCents / 100).toFixed(2);
+  const paidAt = opts.paidAt || new Date();
+  const paidAtStr = paidAt.toLocaleDateString("en-CA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const receiptRow = opts.receiptId
+    ? `<tr><td style="padding: 6px 0; color: #888;">Receipt ID</td><td style="padding: 6px 0; font-family: ui-monospace, Menlo, monospace; font-size: 13px;">${esc(opts.receiptId)}</td></tr>`
+    : "";
+
+  const html = emailWrapper(
+    `<p style="font-size: 15px; color: #666; margin: 0 0 20px;">Payment Confirmed</p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+      Hi ${esc(participantName)}, we've received your payment${sessionName ? ` for <strong>${esc(sessionName)}</strong>` : ""}. Keep this email as your receipt.
+    </p>
+    <table style="width: 100%; margin: 0 0 24px; font-size: 14px; color: #333; border-collapse: collapse;">
+      <tr><td style="padding: 6px 0; color: #888; width: 110px;">Amount</td><td style="padding: 6px 0; font-weight: 700; color: ${color};">$${dollars} CAD</td></tr>
+      <tr><td style="padding: 6px 0; color: #888;">Date</td><td style="padding: 6px 0;">${paidAtStr}</td></tr>
+      ${sessionName ? `<tr><td style="padding: 6px 0; color: #888;">Session</td><td style="padding: 6px 0;">${esc(sessionName)}</td></tr>` : ""}
+      ${receiptRow}
+    </table>
+    ${btn("View Your Account", `${appUrl}/${org.slug}/player`, color)}
+    <p style="font-size: 13px; color: #888; margin: 20px 0 0; line-height: 1.5;">
+      Questions? Reply to this email or contact ${esc(org.name)} directly.
+    </p>`,
+    org.name,
+    color
+  );
+
+  return sendEmail(
+    to,
+    `Payment confirmed — $${dollars} — ${org.name}`,
+    html
+  );
+}

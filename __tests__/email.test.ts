@@ -11,7 +11,10 @@ process.env.RESEND_FROM_EMAIL = "Test <noreply@test.fieldday.app>";
 process.env.FIELDDAY_NOTIFY_EMAIL = "team@fieldday.app";
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
 
-import { sendRegistrationConfirmation } from "../lib/email";
+import {
+  sendRegistrationConfirmation,
+  sendPaymentConfirmation,
+} from "../lib/email";
 
 const mockOrg = {
   name: "Test Sports Org",
@@ -98,6 +101,42 @@ describe("lib/email", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to send email");
+    });
+  });
+
+  describe("sendPaymentConfirmation", () => {
+    it("formats dollars from cents and includes receipt details", async () => {
+      const result = await sendPaymentConfirmation(
+        "player@example.com",
+        "Jane Doe",
+        "Spring League",
+        15000,
+        mockOrg,
+        { receiptId: "REC-ABC123", paidAt: new Date("2026-04-17T12:00:00Z") }
+      );
+
+      expect(result.success).toBe(true);
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+      expect(body.subject).toContain("Payment confirmed");
+      expect(body.subject).toContain("$150.00");
+      expect(body.html).toContain("$150.00 CAD");
+      expect(body.html).toContain("Spring League");
+      expect(body.html).toContain("REC-ABC123");
+      // Date should appear in "en-CA" long format
+      expect(body.html).toMatch(/April 1[67], 2026/);
+    });
+
+    it("omits the receipt ID row when none provided", async () => {
+      await sendPaymentConfirmation(
+        "player@example.com",
+        "Jane",
+        "Session",
+        5000,
+        mockOrg
+      );
+      const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+      expect(body.html).not.toContain("Receipt ID");
     });
   });
 });
