@@ -13,6 +13,7 @@ process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
 
 import {
   sendRegistrationConfirmation,
+  sendAdminNewRegistration,
   sendPaymentConfirmation,
   sendPaymentFailed,
 } from "../lib/email";
@@ -102,6 +103,58 @@ describe("lib/email", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to send email");
+    });
+  });
+
+  describe("sendAdminNewRegistration", () => {
+    it("sends to the org's admin contact email with participant details", async () => {
+      const result = await sendAdminNewRegistration(
+        "Jane Doe",
+        "player@example.com",
+        "Spring League",
+        mockOrg
+      );
+
+      expect(result.success).toBe(true);
+      expect(fetchSpy).toHaveBeenCalledOnce();
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+      expect(body.to).toEqual(["admin@testorg.com"]);
+      expect(body.subject).toContain("New registration");
+      expect(body.subject).toContain("Jane Doe");
+      expect(body.html).toContain("Jane Doe");
+      expect(body.html).toContain("player@example.com");
+      expect(body.html).toContain("Spring League");
+      // Admin CTA links to registrations review page
+      expect(body.html).toContain("/test-org/admin/registrations");
+      expect(body.html).toContain("Review Registrations");
+    });
+
+    it("returns an error and does not call Resend when no contact email configured", async () => {
+      const result = await sendAdminNewRegistration(
+        "Jane",
+        "player@example.com",
+        "Session",
+        { name: "No Admin Org", slug: "no-admin" } // no contactEmail
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/contact email/i);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("escapes HTML in participant name and email (XSS safety)", async () => {
+      await sendAdminNewRegistration(
+        '<script>alert("xss")</script>',
+        'evil@<img src=x>.com',
+        "Session",
+        mockOrg
+      );
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+      expect(body.html).not.toContain("<script>");
+      expect(body.html).toContain("&lt;script&gt;");
+      expect(body.html).not.toContain("<img src=x>");
     });
   });
 

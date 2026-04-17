@@ -117,6 +117,43 @@ export async function sendRegistrationConfirmation(
 }
 
 /**
+ * Notification email sent to the org admin when a new registration arrives.
+ */
+export async function sendAdminNewRegistration(
+  participantName: string,
+  participantEmail: string,
+  sessionName: string,
+  org: OrgContext
+): Promise<{ success: boolean; error?: string }> {
+  const adminEmail = org.contactEmail;
+  if (!adminEmail) {
+    return { success: false, error: "No admin contact email configured" };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://fieldday.app";
+  const color = org.primaryColor || "#2563eb";
+
+  const html = emailWrapper(
+    `<p style="font-size: 15px; color: #666; margin: 0 0 20px;">New Registration</p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 8px;">
+      <strong>${esc(participantName)}</strong> just registered${sessionName ? ` for <strong>${esc(sessionName)}</strong>` : ""}.
+    </p>
+    <p style="font-size: 14px; color: #666; margin: 0 0 24px;">
+      Email: ${esc(participantEmail)}
+    </p>
+    ${btn("Review Registrations", `${appUrl}/${org.slug}/admin/registrations`, color)}`,
+    org.name,
+    color
+  );
+
+  return sendEmail(
+    adminEmail,
+    `New registration: ${participantName}`,
+    html
+  );
+}
+
+/**
  * Payment confirmation / receipt sent after successful Stripe checkout.
  * Includes amount, session name, payment date, and a link back to the
  * participant's account so they can see their full payment history.

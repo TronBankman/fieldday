@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import { makeId } from "@/lib/id";
 import { resolveOrgId } from "@/lib/resolve-org";
-import { sendRegistrationConfirmation } from "@/lib/email";
+import {
+  sendRegistrationConfirmation,
+  sendAdminNewRegistration,
+} from "@/lib/email";
 
 /**
  * POST /api/org/register
@@ -154,12 +157,21 @@ export async function POST(req: NextRequest) {
         if (ses?.name) sessionName = ses.name;
       }
 
-      await sendRegistrationConfirmation(
-        email.trim().toLowerCase(),
-        full_name.trim(),
-        sessionName,
-        orgCtx
-      );
+      // Fire both emails in parallel: participant confirmation and admin alert.
+      await Promise.all([
+        sendRegistrationConfirmation(
+          email.trim().toLowerCase(),
+          full_name.trim(),
+          sessionName,
+          orgCtx
+        ),
+        sendAdminNewRegistration(
+          full_name.trim(),
+          email.trim().toLowerCase(),
+          sessionName,
+          orgCtx
+        ),
+      ]);
     } catch (emailErr) {
       console.error("[org/register] Email send failed:", emailErr);
     }
