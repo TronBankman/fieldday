@@ -14,6 +14,7 @@ process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
 import {
   sendRegistrationConfirmation,
   sendPaymentConfirmation,
+  sendPaymentFailed,
 } from "../lib/email";
 
 const mockOrg = {
@@ -137,6 +138,60 @@ describe("lib/email", () => {
       );
       const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
       expect(body.html).not.toContain("Receipt ID");
+    });
+  });
+
+  describe("sendPaymentFailed", () => {
+    it("includes retry URL, amount, and failure reason", async () => {
+      const result = await sendPaymentFailed(
+        "player@example.com",
+        "Jane Doe",
+        "Spring League",
+        15000,
+        "http://localhost:3000/test-org/checkout?reg=REG-1",
+        mockOrg,
+        "Your card was declined."
+      );
+
+      expect(result.success).toBe(true);
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+      expect(body.subject).toContain("Payment issue");
+      expect(body.subject).toContain("retry");
+      expect(body.html).toContain("$150.00 CAD");
+      expect(body.html).toContain("Spring League");
+      expect(body.html).toContain("Retry Payment");
+      expect(body.html).toContain("checkout?reg=REG-1");
+      expect(body.html).toContain("Your card was declined.");
+    });
+
+    it("omits the reason block when no failure reason provided", async () => {
+      await sendPaymentFailed(
+        "player@example.com",
+        "Jane",
+        "Session",
+        5000,
+        "http://example.com/retry",
+        mockOrg
+      );
+      const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+      // No reason block = no red alert box
+      expect(body.html).not.toContain("#fff5f5");
+    });
+
+    it("escapes the failure reason to prevent HTML injection", async () => {
+      await sendPaymentFailed(
+        "player@example.com",
+        "Jane",
+        "Session",
+        5000,
+        "http://example.com/retry",
+        mockOrg,
+        '<img src=x onerror=alert(1)>'
+      );
+      const body = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+      expect(body.html).not.toContain("<img src=x");
+      expect(body.html).toContain("&lt;img src=x");
     });
   });
 });

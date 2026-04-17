@@ -168,3 +168,54 @@ export async function sendPaymentConfirmation(
     html
   );
 }
+
+/**
+ * Sent when a Stripe payment fails (card declined, insufficient funds,
+ * bank debit bounced, etc.). Points the participant back at the
+ * checkout page to retry. `failureReason` is a short human-readable
+ * hint surfaced to the user — never include raw Stripe error codes.
+ */
+export async function sendPaymentFailed(
+  to: string,
+  participantName: string,
+  sessionName: string,
+  amountCents: number,
+  retryUrl: string,
+  org: OrgContext,
+  failureReason?: string
+): Promise<{ success: boolean; error?: string }> {
+  const color = org.primaryColor || "#2563eb";
+  const dollars = (amountCents / 100).toFixed(2);
+
+  const reasonBlock = failureReason
+    ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 20px; padding: 12px 14px; background: #fff5f5; border-left: 3px solid #dc2626; color: #991b1b;">
+        ${esc(failureReason)}
+      </p>`
+    : "";
+
+  const html = emailWrapper(
+    `<p style="font-size: 15px; color: #666; margin: 0 0 20px;">Payment Didn't Go Through</p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+      Hi ${esc(participantName)}, we tried to process your payment of
+      <strong>$${dollars} CAD</strong>${sessionName ? ` for <strong>${esc(sessionName)}</strong>` : ""}, but it didn't go through.
+    </p>
+    ${reasonBlock}
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+      Your spot is still being held. Tap below to try again with a
+      different card or payment method.
+    </p>
+    ${btn("Retry Payment", retryUrl, color)}
+    <p style="font-size: 13px; color: #888; margin: 20px 0 0; line-height: 1.5;">
+      If you keep running into trouble, reply to this email or contact
+      ${esc(org.name)} directly.
+    </p>`,
+    org.name,
+    color
+  );
+
+  return sendEmail(
+    to,
+    `Payment issue — please retry — ${org.name}`,
+    html
+  );
+}
