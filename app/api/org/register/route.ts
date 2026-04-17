@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import { makeId } from "@/lib/id";
 import { resolveOrgId } from "@/lib/resolve-org";
+import { sendRegistrationConfirmation } from "@/lib/email";
 
 /**
  * POST /api/org/register
@@ -122,6 +123,47 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Fire-and-forget: send confirmation email to the participant.
+  // Look up org and session info for the email context.
+  (async () => {
+    try {
+      const { data: org } = await sb
+        .from("organizations")
+        .select("name, slug, primary_color, contact_email")
+        .eq("id", orgId)
+        .single();
+
+      if (!org) return;
+
+      const orgCtx = {
+        name: org.name,
+        slug: org.slug,
+        primaryColor: org.primary_color,
+        contactEmail: org.contact_email,
+      };
+
+      // Look up session name if a session was specified
+      let sessionName = signup_type || "";
+      if (session_id) {
+        const { data: ses } = await sb
+          .from("sessions")
+          .select("name")
+          .eq("id", session_id)
+          .single();
+        if (ses?.name) sessionName = ses.name;
+      }
+
+      await sendRegistrationConfirmation(
+        email.trim().toLowerCase(),
+        full_name.trim(),
+        sessionName,
+        orgCtx
+      );
+    } catch (emailErr) {
+      console.error("[org/register] Email send failed:", emailErr);
+    }
+  })();
 
   return NextResponse.json({ ok: true, registrationId: regId }, { status: 201 });
 }
