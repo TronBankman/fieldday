@@ -58,25 +58,41 @@ describe("POST /api/demo", () => {
 
   it("fires the admin alert email with the captured fields", async () => {
     await POST(makeRequest(validBody));
-    expect(fetchSpy).toHaveBeenCalledOnce();
+    // Two emails on success: admin alert + user confirmation (fired in parallel).
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
 
-    const [url, opts] = fetchSpy.mock.calls[0];
-    expect(url).toBe("https://api.resend.com/emails");
+    const calls = fetchSpy.mock.calls.map(([url, opts]) => ({
+      url,
+      body: JSON.parse((opts as RequestInit).body as string),
+    }));
+    for (const c of calls) expect(c.url).toBe("https://api.resend.com/emails");
 
-    const body = JSON.parse(opts!.body as string);
-    expect(body.to).toEqual(["team@fieldday.app"]);
-    expect(body.subject).toContain("New demo request");
-    expect(body.subject).toContain("Eastside Strength");
-    expect(body.html).toContain("Eastside Strength");
-    expect(body.html).toContain("gym");
-    expect(body.html).toContain("owner@eastside.com");
-    expect(body.html).toContain("(555) 123-4567");
-    expect(body.html).toContain("75");
-    expect(body.html).toContain("Mindbody");
+    const adminCall = calls.find((c) => c.body.to[0] === "team@fieldday.app");
+    expect(adminCall, "admin alert call").toBeDefined();
+    expect(adminCall!.body.subject).toContain("New demo request");
+    expect(adminCall!.body.subject).toContain("Eastside Strength");
+    expect(adminCall!.body.html).toContain("Eastside Strength");
+    expect(adminCall!.body.html).toContain("gym");
+    expect(adminCall!.body.html).toContain("owner@eastside.com");
+    expect(adminCall!.body.html).toContain("(555) 123-4567");
+    expect(adminCall!.body.html).toContain("75");
+    expect(adminCall!.body.html).toContain("Mindbody");
+  });
+
+  it("sends a confirmation email to the prospect", async () => {
+    await POST(makeRequest(validBody));
+    const calls = fetchSpy.mock.calls.map(([, opts]) =>
+      JSON.parse((opts as RequestInit).body as string)
+    );
+    const userCall = calls.find((b) => b.to[0] === "owner@eastside.com");
+    expect(userCall, "user confirmation call").toBeDefined();
+    expect(userCall!.subject).toMatch(/demo request/i);
+    expect(userCall!.html).toContain("Eastside Strength");
   });
 
   it("still returns 200 even when the admin email send fails", async () => {
-    fetchSpy.mockResolvedValueOnce(new Response("boom", { status: 500 }));
+    // Both email sends return 500 — user should still see success.
+    fetchSpy.mockResolvedValue(new Response("boom", { status: 500 }));
     const res = await POST(makeRequest(validBody));
     // Lead is more important than notification — do not leak infra errors.
     expect(res.status).toBe(200);
