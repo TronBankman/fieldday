@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeId } from "@/lib/id";
-import { sendAdminDemoRequest } from "@/lib/email";
+import { sendAdminDemoRequest, sendDemoRequestConfirmation } from "@/lib/email";
 
 /**
  * Landing page for cold outreach — this endpoint is the conversion
@@ -125,10 +125,11 @@ export async function POST(req: NextRequest) {
     console.log("[demo] Supabase not configured — logging only:", row);
   }
 
-  // 2. Admin alert — fire and forget. Lead is already persisted; email failures
-  //    must not 500 the user.
-  try {
-    const result = await sendAdminDemoRequest({
+  // 2. Admin alert + user confirmation — fire and forget. Lead is already
+  //    persisted; email failures must not 500 the user. Run both in
+  //    parallel since they're independent Resend API calls.
+  const [adminResult, userResult] = await Promise.allSettled([
+    sendAdminDemoRequest({
       id,
       businessName,
       businessType,
@@ -136,12 +137,20 @@ export async function POST(req: NextRequest) {
       currentTool,
       email,
       phone,
-    });
-    if (!result.success) {
-      console.warn("[demo] Admin alert failed:", result.error);
-    }
-  } catch (err) {
-    console.error("[demo] Admin alert threw:", err);
+    }),
+    sendDemoRequestConfirmation(email, businessName),
+  ]);
+
+  if (adminResult.status === "rejected") {
+    console.error("[demo] Admin alert threw:", adminResult.reason);
+  } else if (!adminResult.value.success) {
+    console.warn("[demo] Admin alert failed:", adminResult.value.error);
+  }
+
+  if (userResult.status === "rejected") {
+    console.error("[demo] User confirmation threw:", userResult.reason);
+  } else if (!userResult.value.success) {
+    console.warn("[demo] User confirmation failed:", userResult.value.error);
   }
 
   return NextResponse.json({ ok: true, id }, { status: 200 });

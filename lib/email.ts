@@ -224,6 +224,41 @@ export interface DemoRequestPayload {
   phone?: string;
 }
 
+/**
+ * Thank-you confirmation sent to the prospect after they submit the
+ * /demo form. Purpose is trust, not information — it tells them we
+ * received the request and sets the expectation that we'll reach out
+ * within one business day. Kept deliberately short so it feels like a
+ * real person replied, not a blast.
+ */
+export async function sendDemoRequestConfirmation(
+  to: string,
+  businessName: string
+): Promise<{ success: boolean; error?: string }> {
+  const gold = "#d4af37";
+  const html = emailWrapper(
+    `<p style="font-size: 15px; color: #666; margin: 0 0 20px;">Demo Request Received</p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+      Thanks for reaching out about <strong>${esc(businessName)}</strong>.
+      We got your request and we&#39;ll be in touch within one business day to book a 30-minute walkthrough.
+    </p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+      In the meantime, reply to this email with anything you&#39;d like us to cover during the demo — billing, scheduling, client portal, something specific to your business.
+    </p>
+    <p style="font-size: 13px; color: #888; margin: 20px 0 0; line-height: 1.5;">
+      — The Field Day team
+    </p>`,
+    "Field Day",
+    gold
+  );
+
+  return sendEmail(
+    to,
+    `We got your demo request — Field Day`,
+    html
+  );
+}
+
 export async function sendAdminDemoRequest(
   req: DemoRequestPayload
 ): Promise<{ success: boolean; error?: string }> {
