@@ -140,17 +140,18 @@ describe("POST /api/org/checkout", () => {
     const json = (await res.json()) as { url: string };
     expect(json.url).toBe("https://checkout.stripe.com/pay/cs_test_123");
 
-    // Verify Stripe was called with connected account
+    // Verify Stripe was called with connected account passed as the second
+    // options arg (Stripe Connect convention), not as a session param.
     expect(mockCheckoutCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: "payment",
-        stripe_account: "acct_test123",
         metadata: expect.objectContaining({
           registrationId: "REG-1",
           orgId: "org_test",
           planType: "full",
         }),
-      })
+      }),
+      { stripeAccount: "acct_test123" }
     );
 
     // Verify payment record was inserted
@@ -182,7 +183,8 @@ describe("POST /api/org/checkout", () => {
             }),
           }),
         ],
-      })
+      }),
+      { stripeAccount: "acct_test123" }
     );
 
     // Verify payment plan was created
@@ -284,7 +286,8 @@ describe("POST /api/org/checkout", () => {
             }),
           }),
         ],
-      })
+      }),
+      { stripeAccount: "acct_test123" }
     );
   });
 

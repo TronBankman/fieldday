@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { sendPaymentConfirmation, sendPaymentFailed } from "@/lib/email";
 import Stripe from "stripe";
 
 /**
@@ -49,6 +50,11 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "checkout.session.completed") {
     await handleCheckoutCompleted(event);
+  } else if (
+    event.type === "checkout.session.async_payment_failed" ||
+    event.type === "payment_intent.payment_failed"
+  ) {
+    await handlePaymentFailed(event);
   }
 
   return NextResponse.json({ received: true });
@@ -139,4 +145,152 @@ async function handleCheckoutCompleted(event: Stripe.Event) {
       .eq("registration_id", registrationId)
       .eq("status", "active");
   }
+
+  // Fire-and-forget: send payment confirmation / receipt email
+  (async () => {
+    try {
+      const { data: reg } = await sb
+        .from("registrations")
+        .select("email, full_name, signup_type, session_id")
+        .eq("id", registrationId)
+        .single();
+      if (!reg?.email || !orgId) return;
+
+      const { data: org } = await sb
+        .from("organizations")
+        .select("name, slug, primary_color, contact_email")
+        .eq("id", orgId)
+        .single();
+      if (!org) return;
+
+      let sessionName = reg.signup_type || "";
+      if (reg.session_id) {
+        const { data: ses } = await sb
+          .from("sessions")
+          .select("name")
+          .eq("id", reg.session_id)
+          .single();
+        if (ses?.name) sessionName = ses.name;
+      }
+
+      await sendPaymentConfirmation(
+        reg.email,
+        reg.full_name,
+        sessionName,
+        amountPaid,
+        {
+          name: org.name,
+          slug: org.slug,
+          primaryColor: org.primary_color,
+          contactEmail: org.contact_email,
+        },
+        { receiptId: session.id }
+      );
+    } catch (emailErr) {
+      console.error("[stripe-webhook] Payment confirmation email failed:", emailErr);
+    }
+  })();
+}
+
+/**
+ * Handle a failed payment — mark any pending payment row failed, then
+ * email the participant with a retry link back to the checkout page.
+ *
+ * Triggered by either:
+ *   - `checkout.session.async_payment_failed` (ACH / delayed failures)
+ *   - `payment_intent.payment_failed` (sync card declines)
+ */
+async function handlePaymentFailed(event: Stripe.Event) {
+  // Both event types expose metadata, but on different shapes.
+  let registrationId: string | undefined;
+  let orgId: string | undefined;
+  let amountCents = 0;
+  let stripeSessionId: string | undefined;
+  let failureReason: string | undefined;
+
+  if (event.type === "checkout.session.async_payment_failed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    registrationId = session.metadata?.registrationId;
+    orgId = session.metadata?.orgId;
+    amountCents = session.amount_total || 0;
+    stripeSessionId = session.id;
+    failureReason = "Your bank declined the payment. Please try a different card.";
+  } else if (event.type === "payment_intent.payment_failed") {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    registrationId = pi.metadata?.registrationId;
+    orgId = pi.metadata?.orgId;
+    amountCents = pi.amount || 0;
+    // last_payment_error.message is human-readable (e.g., "Your card was declined.")
+    failureReason = pi.last_payment_error?.message;
+  }
+
+  if (!registrationId) {
+    console.warn(
+      `[stripe-webhook] ${event.type} without registrationId in metadata`
+    );
+    return;
+  }
+
+  const sb = getSupabaseServer();
+
+  // Mark any pending payment row failed so the admin UI reflects reality.
+  if (stripeSessionId) {
+    await sb
+      .from("payments")
+      .update({ status: "failed" })
+      .eq("stripe_session_id", stripeSessionId);
+  }
+
+  // Fire-and-forget: email the participant a retry link.
+  (async () => {
+    try {
+      const { data: reg } = await sb
+        .from("registrations")
+        .select("id, email, full_name, signup_type, session_id, org_id")
+        .eq("id", registrationId)
+        .single();
+      if (!reg?.email) return;
+
+      const resolvedOrgId = orgId || reg.org_id;
+      if (!resolvedOrgId) return;
+
+      const { data: org } = await sb
+        .from("organizations")
+        .select("name, slug, primary_color, contact_email")
+        .eq("id", resolvedOrgId)
+        .single();
+      if (!org) return;
+
+      let sessionName = reg.signup_type || "";
+      if (reg.session_id) {
+        const { data: ses } = await sb
+          .from("sessions")
+          .select("name")
+          .eq("id", reg.session_id)
+          .single();
+        if (ses?.name) sessionName = ses.name;
+      }
+
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "https://fieldday.app";
+      const retryUrl = `${appUrl}/${org.slug}/checkout?reg=${reg.id}`;
+
+      await sendPaymentFailed(
+        reg.email,
+        reg.full_name,
+        sessionName,
+        amountCents,
+        retryUrl,
+        {
+          name: org.name,
+          slug: org.slug,
+          primaryColor: org.primary_color,
+          contactEmail: org.contact_email,
+        },
+        failureReason
+      );
+    } catch (emailErr) {
+      console.error("[stripe-webhook] Payment failed email failed:", emailErr);
+    }
+  })();
 }
