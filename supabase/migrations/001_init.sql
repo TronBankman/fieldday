@@ -339,18 +339,23 @@ create index if not exists idx_player_notes_player_email on public.player_notes 
 create index if not exists idx_player_notes_created_at on public.player_notes (player_email, created_at desc);
 
 -- Demo Requests
+-- Captures inbound leads from the /demo cold-outreach landing page.
+-- business_type: one of gym, martial_arts, tennis, hockey, dance, tutoring, other
+-- active_clients: self-reported current roster size (nullable — prospects may skip)
 create table if not exists public.demo_requests (
-  id           text primary key,
-  name         text not null,
-  org          text not null,
-  email        text not null,
-  sport        text not null,
-  current_tool text not null default '',
-  created_at   timestamptz not null default now()
+  id             text primary key,
+  business_name  text not null,
+  business_type  text not null,
+  active_clients integer,
+  current_tool   text not null default '',
+  email          text not null,
+  phone          text not null default '',
+  created_at     timestamptz not null default now()
 );
 
 create index if not exists idx_demo_requests_email on public.demo_requests (email);
 create index if not exists idx_demo_requests_created_at on public.demo_requests (created_at desc);
+create index if not exists idx_demo_requests_business_type on public.demo_requests (business_type);
 
 -- ============================================================
 -- Row-Level Security

@@ -5,6 +5,16 @@ import { useState } from "react";
 
 type FormState = "idle" | "submitting" | "success" | "error";
 
+const BUSINESS_TYPES: Array<{ value: string; label: string }> = [
+  { value: "gym", label: "Gym" },
+  { value: "martial_arts", label: "Martial arts" },
+  { value: "tennis", label: "Tennis" },
+  { value: "hockey", label: "Hockey" },
+  { value: "dance", label: "Dance" },
+  { value: "tutoring", label: "Tutoring" },
+  { value: "other", label: "Other" },
+];
+
 export default function DemoPage() {
   const [state, setState] = useState<FormState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -15,12 +25,17 @@ export default function DemoPage() {
     setErrorMsg("");
 
     const form = e.currentTarget;
+    const raw = (name: string) =>
+      (form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "";
+
+    const activeClientsRaw = raw("activeClients").trim();
     const data = {
-      name: (form.elements.namedItem("name") as HTMLInputElement).value.trim(),
-      org: (form.elements.namedItem("org") as HTMLInputElement).value.trim(),
-      email: (form.elements.namedItem("email") as HTMLInputElement).value.trim(),
-      sport: (form.elements.namedItem("sport") as HTMLSelectElement).value,
-      currentTool: (form.elements.namedItem("currentTool") as HTMLInputElement).value.trim(),
+      businessName: raw("businessName").trim(),
+      businessType: raw("businessType"),
+      activeClients: activeClientsRaw === "" ? null : Number(activeClientsRaw),
+      currentTool: raw("currentTool").trim(),
+      email: raw("email").trim(),
+      phone: raw("phone").trim(),
     };
 
     try {
@@ -87,68 +102,84 @@ export default function DemoPage() {
               Let&apos;s show you around.
             </h1>
             <p className="text-[#a8aab0] m-0 mb-8">
-              Fill this out and we&apos;ll reach out within one business day to
-              book a 30-minute walkthrough.
+              Tell us a bit about your business and we&apos;ll reach out within
+              one business day to book a 30-minute walkthrough.
             </p>
 
             <form
               onSubmit={handleSubmit}
               className="border border-[#2e2e36] rounded-2xl bg-gradient-to-br from-[rgba(26,26,30,0.95)] to-[rgba(18,18,20,0.95)] p-6 max-md:p-4 grid gap-4"
             >
-              <FormField label="Your name" required>
+              <FormField label="Business name" required>
                 <input
-                  name="name"
+                  name="businessName"
                   type="text"
                   required
-                  placeholder="Jane Smith"
+                  maxLength={200}
+                  autoComplete="organization"
+                  placeholder="Eastside Strength & Conditioning"
                   className="w-full h-10 rounded-lg bg-[#111113] border border-[#2e2e36] text-[#f2f2f4] text-sm px-3 focus:outline-none focus:border-[#d4af37]/60 transition-colors"
                 />
               </FormField>
 
-              <FormField label="Organization name" required>
-                <input
-                  name="org"
-                  type="text"
+              <FormField label="Business type" required>
+                <select
+                  name="businessType"
                   required
-                  placeholder="BC Falcons Hockey"
+                  defaultValue=""
+                  className="w-full h-10 rounded-lg bg-[#111113] border border-[#2e2e36] text-[#f2f2f4] text-sm px-3 focus:outline-none focus:border-[#d4af37]/60 transition-colors appearance-none"
+                >
+                  <option value="" disabled>
+                    Select a business type
+                  </option>
+                  {BUSINESS_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+
+              <FormField label="Number of active clients">
+                <input
+                  name="activeClients"
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  placeholder="75"
                   className="w-full h-10 rounded-lg bg-[#111113] border border-[#2e2e36] text-[#f2f2f4] text-sm px-3 focus:outline-none focus:border-[#d4af37]/60 transition-colors"
                 />
               </FormField>
 
-              <FormField label="Email address" required>
+              <FormField label="Current booking tool">
+                <input
+                  name="currentTool"
+                  type="text"
+                  maxLength={200}
+                  placeholder="Mindbody, spreadsheets, nothing yet…"
+                  className="w-full h-10 rounded-lg bg-[#111113] border border-[#2e2e36] text-[#f2f2f4] text-sm px-3 focus:outline-none focus:border-[#d4af37]/60 transition-colors"
+                />
+              </FormField>
+
+              <FormField label="Email" required>
                 <input
                   name="email"
                   type="email"
                   required
-                  placeholder="jane@bcfalcons.com"
+                  autoComplete="email"
+                  placeholder="you@yourbusiness.com"
                   className="w-full h-10 rounded-lg bg-[#111113] border border-[#2e2e36] text-[#f2f2f4] text-sm px-3 focus:outline-none focus:border-[#d4af37]/60 transition-colors"
                 />
               </FormField>
 
-              <FormField label="Sport" required>
-                <select
-                  name="sport"
-                  required
-                  className="w-full h-10 rounded-lg bg-[#111113] border border-[#2e2e36] text-[#f2f2f4] text-sm px-3 focus:outline-none focus:border-[#d4af37]/60 transition-colors appearance-none"
-                >
-                  <option value="">Select a sport</option>
-                  <option value="hockey">Hockey</option>
-                  <option value="soccer">Soccer</option>
-                  <option value="lacrosse">Lacrosse</option>
-                  <option value="basketball">Basketball</option>
-                  <option value="baseball">Baseball</option>
-                  <option value="volleyball">Volleyball</option>
-                  <option value="softball">Softball</option>
-                  <option value="football">Football</option>
-                  <option value="other">Other</option>
-                </select>
-              </FormField>
-
-              <FormField label="What are you currently using to manage your org?">
+              <FormField label="Phone">
                 <input
-                  name="currentTool"
-                  type="text"
-                  placeholder="TeamSnap, spreadsheets, nothing, etc."
+                  name="phone"
+                  type="tel"
+                  maxLength={40}
+                  autoComplete="tel"
+                  placeholder="(555) 123-4567"
                   className="w-full h-10 rounded-lg bg-[#111113] border border-[#2e2e36] text-[#f2f2f4] text-sm px-3 focus:outline-none focus:border-[#d4af37]/60 transition-colors"
                 />
               </FormField>
@@ -166,6 +197,10 @@ export default function DemoPage() {
               >
                 {state === "submitting" ? "Sending..." : "Request a Demo"}
               </button>
+
+              <p className="text-[#a8aab0] text-xs text-center m-0">
+                We&apos;ll only use this to reach out about a demo. No spam, no sharing.
+              </p>
             </form>
           </div>
         )}

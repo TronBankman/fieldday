@@ -207,6 +207,106 @@ export async function sendPaymentConfirmation(
 }
 
 /**
+ * Admin alert fired when a new /demo landing-page submission arrives.
+ *
+ * Destination is `FIELDDAY_NOTIFY_EMAIL` (falls back to `hello@fieldday.app`
+ * so a misconfigured env var never drops a real cold-outreach lead).
+ * The body is deliberately plain and info-dense — the owner reads this on
+ * their phone and replies from the same thread.
+ */
+export interface DemoRequestPayload {
+  id: string;
+  businessName: string;
+  businessType: string;
+  activeClients?: number | null;
+  currentTool?: string;
+  email: string;
+  phone?: string;
+}
+
+/**
+ * Thank-you confirmation sent to the prospect after they submit the
+ * /demo form. Purpose is trust, not information — it tells them we
+ * received the request and sets the expectation that we'll reach out
+ * within one business day. Kept deliberately short so it feels like a
+ * real person replied, not a blast.
+ */
+export async function sendDemoRequestConfirmation(
+  to: string,
+  businessName: string
+): Promise<{ success: boolean; error?: string }> {
+  const gold = "#d4af37";
+  const html = emailWrapper(
+    `<p style="font-size: 15px; color: #666; margin: 0 0 20px;">Demo Request Received</p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+      Thanks for reaching out about <strong>${esc(businessName)}</strong>.
+      We got your request and we&#39;ll be in touch within one business day to book a 30-minute walkthrough.
+    </p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+      In the meantime, reply to this email with anything you&#39;d like us to cover during the demo — billing, scheduling, client portal, something specific to your business.
+    </p>
+    <p style="font-size: 13px; color: #888; margin: 20px 0 0; line-height: 1.5;">
+      — The Field Day team
+    </p>`,
+    "Field Day",
+    gold
+  );
+
+  return sendEmail(
+    to,
+    `We got your demo request — Field Day`,
+    html
+  );
+}
+
+export async function sendAdminDemoRequest(
+  req: DemoRequestPayload
+): Promise<{ success: boolean; error?: string }> {
+  const to = process.env.FIELDDAY_NOTIFY_EMAIL || "hello@fieldday.app";
+  const gold = "#d4af37";
+
+  const rows: Array<[string, string]> = [
+    ["Business", req.businessName],
+    ["Type", req.businessType.replace(/_/g, " ")],
+    ["Email", req.email],
+  ];
+  if (req.phone && req.phone.trim()) rows.push(["Phone", req.phone]);
+  if (typeof req.activeClients === "number")
+    rows.push(["Active clients", String(req.activeClients)]);
+  if (req.currentTool && req.currentTool.trim())
+    rows.push(["Current tool", req.currentTool]);
+  rows.push(["Request ID", req.id]);
+
+  const rowsHtml = rows
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:6px 10px 6px 0; color:#888; width:140px;">${esc(k)}</td><td style="padding:6px 0; color:#1a1a1a;">${esc(v)}</td></tr>`
+    )
+    .join("");
+
+  const html = emailWrapper(
+    `<p style="font-size: 15px; color: #666; margin: 0 0 20px;">New Demo Request</p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+      A prospect just submitted the /demo form. Details:
+    </p>
+    <table style="width: 100%; margin: 0 0 24px; font-size: 14px; border-collapse: collapse;">
+      ${rowsHtml}
+    </table>
+    <p style="font-size: 13px; color: #888; margin: 0; line-height: 1.5;">
+      Reply directly to this email to reach ${esc(req.email)} — or call ${esc(req.phone || "(no phone provided)")}.
+    </p>`,
+    "Field Day",
+    gold
+  );
+
+  return sendEmail(
+    to,
+    `New demo request: ${req.businessName}`,
+    html
+  );
+}
+
+/**
  * Sent when a Stripe payment fails (card declined, insufficient funds,
  * bank debit bounced, etc.). Points the participant back at the
  * checkout page to retry. `failureReason` is a short human-readable
