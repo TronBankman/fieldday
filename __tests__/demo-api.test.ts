@@ -14,6 +14,12 @@ process.env.RESEND_API_KEY = "re_test_key";
 process.env.RESEND_FROM_EMAIL = "Test <noreply@test.fieldday.app>";
 process.env.FIELDDAY_NOTIFY_EMAIL = "team@fieldday.app";
 
+// Ensure Supabase is NOT configured so the route falls through to console-log.
+// Without this, env vars leaking from .env.local cause real Supabase fetch calls
+// that collide with the Resend fetch spy.
+delete process.env.SUPABASE_URL;
+delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 import { POST } from "../app/api/demo/route";
 
 function makeRequest(body: unknown): NextRequest {

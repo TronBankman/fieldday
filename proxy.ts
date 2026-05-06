@@ -41,6 +41,7 @@ interface OrgRow {
   stripe_account_id: string;
   contact_email: string;
   organization_terminology?: Record<string, string> | null;
+  onboarding_state?: string;
 }
 
 async function lookupOrg(slug: string): Promise<OrgRow | null> {
@@ -114,6 +115,12 @@ export async function proxy(req: NextRequest) {
   requestHeaders.set(
     "x-fieldday-org-terminology",
     terms && typeof terms === "object" ? JSON.stringify(terms) : "{}",
+  );
+
+  // Onboarding state — drives the welcome banner in admin pages.
+  requestHeaders.set(
+    "x-fieldday-org-onboarding-state",
+    org.onboarding_state ?? "active",
   );
 
   return NextResponse.next({ request: { headers: requestHeaders } });

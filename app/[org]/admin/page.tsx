@@ -9,6 +9,7 @@ import {
   type TermKey,
   type TerminologyOverrides as FullTerminologyOverrides,
 } from "@/src/lib/terminology";
+import WelcomeBanner from "./_components/WelcomeBanner";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -435,6 +436,9 @@ export default function OrgAdminPage() {
             Sign out
           </button>
         </div>
+
+        {/* Welcome / Onboarding Banner */}
+        <WelcomeBanner orgSlug={orgSlug} />
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-[#2e2e36] pb-px">
