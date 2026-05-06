@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 const SLUG_RE = /^[a-z0-9-]{1,64}$/;
 
 // Paths that are NOT org routes (exact or prefix matches)
-const NON_ORG_PREFIXES = ["/api/", "/demo", "/_next/", "/favicon"];
+const NON_ORG_PREFIXES = ["/api/", "/demo", "/signup", "/_next/", "/favicon"];
 
 export const config = {
   matcher: [
@@ -27,7 +27,7 @@ export const config = {
      * - / (root landing page — no org segment)
      * - /demo  (Fieldday's own demo page)
      */
-    "/((?!_next|api|favicon|demo$).*)",
+    "/((?!_next|api|favicon|demo$|signup).*)",
   ],
 };
 
@@ -40,6 +40,7 @@ interface OrgRow {
   logo_url: string;
   stripe_account_id: string;
   contact_email: string;
+  organization_terminology?: Record<string, string> | null;
 }
 
 async function lookupOrg(slug: string): Promise<OrgRow | null> {
@@ -105,6 +106,15 @@ export async function proxy(req: NextRequest) {
   requestHeaders.set("x-fieldday-org-logo", org.logo_url);
   requestHeaders.set("x-fieldday-org-email", org.contact_email);
   requestHeaders.set("x-fieldday-org-stripe", org.stripe_account_id);
+
+  // Terminology overrides (JSONB column) — serialized so client-side fetches
+  // and downstream API routes can read it without a second DB round-trip.
+  // Empty/missing → "{}", which the UI treats as "use defaults".
+  const terms = org.organization_terminology;
+  requestHeaders.set(
+    "x-fieldday-org-terminology",
+    terms && typeof terms === "object" ? JSON.stringify(terms) : "{}",
+  );
 
   return NextResponse.next({ request: { headers: requestHeaders } });
 }

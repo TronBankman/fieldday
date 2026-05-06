@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { getToken, setToken, clearToken, adminFetch } from "@/lib/admin-api";
+import {
+  DEFAULT_TERMS,
+  resolveTerm,
+  type TermKey,
+  type TerminologyOverrides as FullTerminologyOverrides,
+} from "@/src/lib/terminology";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -52,7 +58,19 @@ interface SessionData {
   installmentCount: number;
 }
 
-type Tab = "registrations" | "sessions" | "payments";
+type Tab = "registrations" | "sessions" | "payments" | "settings";
+
+interface TerminologyOverrides {
+  player?: string;
+  coach?: string;
+  team?: string;
+}
+
+const TERMINOLOGY_DEFAULTS: Required<TerminologyOverrides> = {
+  player: "player",
+  coach: "coach",
+  team: "team",
+};
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -60,6 +78,31 @@ type Tab = "registrations" | "sessions" | "payments";
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+/** Capitalize the first letter so labels read "Clients" not "clients". */
+function cap(word: string): string {
+  return word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/**
+ * Resolve every TermKey using the saved overrides (which only contain
+ * singular keys today). Plural keys are derived via the helper, so an
+ * org overriding `player → client` automatically gets `players → clients`.
+ */
+function buildTermsMap(
+  overrides: TerminologyOverrides,
+): Record<TermKey, string> {
+  const full: FullTerminologyOverrides = {
+    player: overrides.player,
+    coach: overrides.coach,
+    team: overrides.team,
+  };
+  const out = {} as Record<TermKey, string>;
+  for (const key of Object.keys(DEFAULT_TERMS) as TermKey[]) {
+    out[key] = resolveTerm(key, full);
+  }
+  return out;
 }
 
 function groupBy<T>(items: T[], getKey: (item: T) => string): [string, T[]][] {
@@ -106,6 +149,16 @@ export default function OrgAdminPage() {
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [editingSession, setEditingSession] = useState<SessionData | null>(null);
 
+  // Settings (terminology overrides)
+  const [terminology, setTerminology] = useState<TerminologyOverrides>({});
+  const [terminologyLoaded, setTerminologyLoaded] = useState(false);
+  const [savingTerminology, setSavingTerminology] = useState(false);
+
+  // Resolved labels (singular + plural) used across all tabs. Recomputed
+  // whenever the saved overrides change; falls back to defaults until
+  // the first /api/org/admin/settings response arrives.
+  const terms = useMemo(() => buildTermsMap(terminology), [terminology]);
+
   useEffect(() => {
     const token = getToken();
     if (token) setAuthed(true);
@@ -139,6 +192,62 @@ export default function OrgAdminPage() {
   useEffect(() => {
     if (authed) loadData();
   }, [authed, loadData]);
+
+  /* ---------- Settings actions ---------- */
+
+  const loadTerminology = useCallback(async () => {
+    try {
+      const res = await adminFetch("/api/org/admin/settings");
+      if (res.ok) {
+        const json = (await res.json()) as { terminology: TerminologyOverrides };
+        setTerminology(json.terminology ?? {});
+        setTerminologyLoaded(true);
+      }
+    } catch {
+      // adminFetch handles 401
+    }
+  }, []);
+
+  // Load terminology as soon as the admin authenticates so every tab can
+  // render with the correct labels — not just the Settings tab.
+  useEffect(() => {
+    if (authed && !terminologyLoaded) {
+      loadTerminology();
+    }
+  }, [authed, terminologyLoaded, loadTerminology]);
+
+  async function handleTerminologySubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setActionMsg("");
+    setSavingTerminology(true);
+    const form = new FormData(e.currentTarget);
+    const payload = {
+      terminology: {
+        player: String(form.get("term_player") ?? "").trim(),
+        coach: String(form.get("term_coach") ?? "").trim(),
+        team: String(form.get("term_team") ?? "").trim(),
+      },
+    };
+    try {
+      const res = await adminFetch("/api/org/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setActionMsg((json as { error?: string }).error ?? "Save failed");
+        return;
+      }
+      const json = (await res.json()) as { terminology: TerminologyOverrides };
+      setTerminology(json.terminology ?? {});
+      setActionMsg("Terminology saved");
+      setTimeout(() => setActionMsg(""), 2000);
+    } catch {
+      setActionMsg("Network error");
+    } finally {
+      setSavingTerminology(false);
+    }
+  }
 
   /* ---------- Login ---------- */
 
@@ -253,7 +362,7 @@ export default function OrgAdminPage() {
   }
 
   async function deleteSession(id: string) {
-    if (!confirm("Remove this session? (It can be re-created.)")) return;
+    if (!confirm(`Remove this ${terms.session}? (It can be re-created.)`)) return;
     try {
       const res = await adminFetch("/api/org/admin/sessions", {
         method: "DELETE",
@@ -329,7 +438,7 @@ export default function OrgAdminPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-[#2e2e36] pb-px">
-          {(["registrations", "sessions", "payments"] as Tab[]).map((t) => (
+          {(["registrations", "sessions", "payments", "settings"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -357,20 +466,22 @@ export default function OrgAdminPage() {
         {tab === "registrations" && (
           <div className="grid gap-6">
             {registrations.length === 0 && !dataLoading && (
-              <p className="text-[#a8aab0] text-sm">No registrations yet.</p>
+              <p className="text-[#a8aab0] text-sm">No {terms.registrations} yet.</p>
             )}
             {grouped.map(([sessionId, regs]) => {
               const session = sessionMap.get(sessionId);
               const label = session
                 ? `${session.name} — ${session.date}`
                 : sessionId === "unassigned"
-                  ? "No Session Assigned"
+                  ? `No ${cap(terms.session)} Assigned`
                   : sessionId;
               return (
                 <div key={sessionId} className="border border-[#2e2e36] rounded-xl bg-[#16161a] overflow-hidden">
                   <div className="px-5 py-3 border-b border-[#2e2e36] bg-[#111113]">
                     <h3 className="text-sm font-bold text-[#d4af37]">{label}</h3>
-                    <span className="text-xs text-[#a8aab0]">{regs.length} registration{regs.length !== 1 ? "s" : ""}</span>
+                    <span className="text-xs text-[#a8aab0]">
+                      {regs.length === 1 ? `1 ${terms.registration}` : `${regs.length} ${terms.registrations}`}
+                    </span>
                   </div>
                   <div className="divide-y divide-[#2e2e36]">
                     {regs.map((r) => (
@@ -461,7 +572,7 @@ export default function OrgAdminPage() {
                 }}
                 className={BTN_GOLD}
               >
-                + New Session
+                + New {cap(terms.session)}
               </button>
             </div>
 
@@ -473,11 +584,12 @@ export default function OrgAdminPage() {
                   setShowSessionForm(false);
                   setEditingSession(null);
                 }}
+                sessionLabel={terms.session}
               />
             )}
 
             {sessions.length === 0 && !dataLoading && !showSessionForm && (
-              <p className="text-[#a8aab0] text-sm">No sessions yet. Create one to get started.</p>
+              <p className="text-[#a8aab0] text-sm">No {terms.sessions} yet. Create one to get started.</p>
             )}
 
             {sessions.map((s) => {
@@ -553,10 +665,10 @@ export default function OrgAdminPage() {
             {/* Unpaid list */}
             <div>
               <h3 className="text-sm font-bold text-[#f2f2f4] mb-3">
-                Unpaid Registrations ({unpaidRegs.length})
+                Unpaid {cap(terms.registrations)} ({unpaidRegs.length})
               </h3>
               {unpaidRegs.length === 0 && (
-                <p className="text-[#a8aab0] text-sm">All registrations are paid up.</p>
+                <p className="text-[#a8aab0] text-sm">All {terms.registrations} are paid up.</p>
               )}
               <div className="grid gap-2">
                 {unpaidRegs.map((r) => {
@@ -586,6 +698,72 @@ export default function OrgAdminPage() {
             </div>
           </div>
         )}
+
+        {/* Settings Tab */}
+        {tab === "settings" && (
+          <div className="grid gap-6">
+            <div className="border border-[#2e2e36] rounded-xl bg-[#16161a] p-5">
+              <h3 className="text-sm font-bold text-[#d4af37] mb-1">Terminology</h3>
+              <p className="text-xs text-[#a8aab0] mb-4">
+                Override the default labels across your org. Leave a field blank
+                to keep the default (shown in gray).
+              </p>
+              {!terminologyLoaded ? (
+                <p className="text-[#a8aab0] text-sm">Loading\u2026</p>
+              ) : (
+                <form onSubmit={handleTerminologySubmit} className="grid gap-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1">
+                      <span className="text-xs text-[#a8aab0]">
+                        Player label (default: {TERMINOLOGY_DEFAULTS.player})
+                      </span>
+                      <input
+                        name="term_player"
+                        defaultValue={terminology.player ?? ""}
+                        placeholder="e.g. client"
+                        maxLength={40}
+                        className={INPUT_CLS}
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-[#a8aab0]">
+                        Coach label (default: {TERMINOLOGY_DEFAULTS.coach})
+                      </span>
+                      <input
+                        name="term_coach"
+                        defaultValue={terminology.coach ?? ""}
+                        placeholder="e.g. instructor"
+                        maxLength={40}
+                        className={INPUT_CLS}
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-[#a8aab0]">
+                        Team label (default: {TERMINOLOGY_DEFAULTS.team})
+                      </span>
+                      <input
+                        name="term_team"
+                        defaultValue={terminology.team ?? ""}
+                        placeholder="e.g. group"
+                        maxLength={40}
+                        className={INPUT_CLS}
+                      />
+                    </label>
+                  </div>
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={savingTerminology}
+                      className={BTN_GOLD}
+                    >
+                      {savingTerminology ? "Saving\u2026" : "Save Terminology"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -599,18 +777,24 @@ function SessionForm({
   session,
   onSubmit,
   onCancel,
+  sessionLabel = "session",
 }: {
   session: SessionData | null;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
+  sessionLabel?: string;
 }) {
+  const capLabel =
+    sessionLabel.length === 0
+      ? sessionLabel
+      : sessionLabel.charAt(0).toUpperCase() + sessionLabel.slice(1);
   return (
     <form
       onSubmit={onSubmit}
       className="border border-[#2e2e36] rounded-xl bg-[#16161a] p-5 grid gap-4"
     >
       <h3 className="text-sm font-bold text-[#d4af37]">
-        {session ? "Edit Session" : "New Session"}
+        {session ? `Edit ${capLabel}` : `New ${capLabel}`}
       </h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -728,7 +912,7 @@ function SessionForm({
       {/* Actions */}
       <div className="flex gap-3 pt-2">
         <button type="submit" className={BTN_GOLD}>
-          {session ? "Save Changes" : "Create Session"}
+          {session ? "Save Changes" : `Create ${capLabel}`}
         </button>
         <button type="button" onClick={onCancel} className={BTN_OUTLINE + " h-10"}>
           Cancel

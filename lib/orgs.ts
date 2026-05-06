@@ -1,3 +1,36 @@
+/**
+ * Per-org label overrides for non-hockey verticals (gyms, martial arts,
+ * tennis, dance, tutoring). All keys are optional; the UI falls back to
+ * the defaults below when a key is unset or empty.
+ */
+export interface OrganizationTerminology {
+  player?: string;
+  coach?: string;
+  team?: string;
+}
+
+/**
+ * Default hockey-flavored labels. Non-hockey orgs override via
+ * `Organization.organization_terminology` (e.g., player→client for gyms,
+ * coach→instructor for martial arts, team→group for tutoring cohorts).
+ */
+export const DEFAULT_TERMINOLOGY: Required<OrganizationTerminology> = {
+  player: "player",
+  coach: "coach",
+  team: "team",
+};
+
+/** Resolve a term using the org override, falling back to the default. */
+export function resolveTerm(
+  terms: OrganizationTerminology | null | undefined,
+  key: keyof OrganizationTerminology
+): string {
+  const override = terms?.[key];
+  return override && override.trim().length > 0
+    ? override
+    : DEFAULT_TERMINOLOGY[key];
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -7,6 +40,7 @@ export interface Organization {
   logo_url: string;
   stripe_account_id: string;
   contact_email: string;
+  organization_terminology: OrganizationTerminology;
   created_at: string;
 }
 

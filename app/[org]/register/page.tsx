@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { DEFAULT_TERMS, type TermKey } from "@/src/lib/terminology";
 
 interface SessionOption {
   id: string;
@@ -15,6 +16,11 @@ interface SessionOption {
 }
 
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL"];
+
+/** Capitalize the first letter — labels read as "Client Full Name", not "client full name". */
+function cap(word: string): string {
+  return word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1);
+}
 
 export default function OrgRegisterPage() {
   const params = useParams<{ org: string }>();
@@ -32,6 +38,12 @@ export default function OrgRegisterPage() {
 
   // Signup type
   const [signupType, setSignupType] = useState("");
+
+  // Terminology overrides — defaults to hockey labels until the org's
+  // map loads. The form remains usable on defaults if the fetch fails.
+  const [terms, setTerms] = useState<Record<TermKey, string>>(
+    DEFAULT_TERMS as Record<TermKey, string>,
+  );
 
   // Load sessions on mount
   useEffect(() => {
@@ -52,6 +64,25 @@ export default function OrgRegisterPage() {
       }
     }
     loadSessions();
+  }, [orgSlug]);
+
+  // Load terminology overrides
+  useEffect(() => {
+    async function loadTerms() {
+      try {
+        const res = await fetch(`/api/org/terminology`, {
+          headers: { "x-fieldday-org-slug": orgSlug },
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { terms: Record<TermKey, string> };
+          if (data.terms) setTerms(data.terms);
+        }
+      } catch {
+        // Defaults already applied
+      }
+    }
+    loadTerms();
   }, [orgSlug]);
 
   const handleSessionChange = useCallback((sessionId: string) => {
@@ -149,9 +180,9 @@ export default function OrgRegisterPage() {
         <p className="text-[#a8aab0] mb-8">Fill out the form below to register.</p>
 
         <form onSubmit={handleSubmit} className="grid gap-4">
-          {/* Player Full Name */}
+          {/* Player / Client / Member full name (label adapts to org terminology) */}
           <label className={labelClass}>
-            <span className={labelTextClass}>Player Full Name {requiredStar}</span>
+            <span className={labelTextClass}>{cap(terms.player)} Full Name {requiredStar}</span>
             <input name="full_name" type="text" required autoComplete="name" className={inputClass} />
           </label>
 
@@ -186,7 +217,7 @@ export default function OrgRegisterPage() {
             />
           </label>
 
-          {/* Signup Type */}
+          {/* Signup Type — option labels adapt to org terminology */}
           <label className={labelClass}>
             <span className={labelTextClass}>Signup Type</span>
             <select
@@ -196,16 +227,16 @@ export default function OrgRegisterPage() {
               className={inputClass}
             >
               <option value="">Select an option</option>
-              <option value="Session Signup">Session Signup</option>
-              <option value="Team Application">Team Application</option>
+              <option value="Session Signup">{cap(terms.session)} Signup</option>
+              <option value="Team Application">{cap(terms.team)} Application</option>
               <option value="Waitlist">Waitlist</option>
               <option value="General Interest">General Interest</option>
             </select>
           </label>
 
-          {/* Session Dropdown */}
+          {/* Session / Class / Lesson dropdown (label adapts to org terminology) */}
           <label className={labelClass}>
-            <span className={labelTextClass}>Session</span>
+            <span className={labelTextClass}>{cap(terms.session)}</span>
             <select
               name="session_id"
               value={selectedSessionId}
@@ -214,7 +245,9 @@ export default function OrgRegisterPage() {
               disabled={sessionsLoading}
             >
               <option value="">
-                {sessionsLoading ? "Loading sessions..." : "Select a session (optional)"}
+                {sessionsLoading
+                  ? `Loading ${terms.sessions}...`
+                  : `Select a ${terms.session} (optional)`}
               </option>
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -292,7 +325,7 @@ export default function OrgRegisterPage() {
             disabled={loading}
             className="h-11 rounded-xl font-bold bg-[#d4af37] text-[#0a0a0c] hover:bg-[#e8c84a] disabled:opacity-60 transition-colors"
           >
-            {loading ? "Submitting\u2026" : "Submit Registration"}
+            {loading ? "Submitting\u2026" : `Submit ${cap(terms.registration)}`}
           </button>
         </form>
       </div>

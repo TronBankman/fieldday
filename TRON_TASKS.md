@@ -382,3 +382,9 @@ Rationale:
 - No secrets in code — SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, JWT_SECRET from env
 - Mobile responsive on every page
 - All PRs need passing tests before merge
+
+---
+
+## Blocker — 2026-04-27 (status check by felix)
+
+**Stuck:** Branch `feature/org-terminology-settings` has uncommitted work since last commit `332505c` on 2026-04-22 (5 days idle). Diff covers a partial Chunk 6 slice — terminology module + admin settings UI + migration `003_organization_terminology.sql` + two test files — but does NOT include the signup page, `POST /api/signup`, slug-availability route, Stripe Express Account Link flow, or welcome banner that Chunk 6 actually requires. Branch name implies a different scope than Chunk 6 spec; unclear whether this is meant to be a pre-Chunk-6 cleanup PR or a stalled Chunk 6 attempt. Needs an owner decision: commit current diff as a scoped "terminology settings" PR and start Chunk 6 fresh on a new branch, OR rebase this branch into a Chunk 6 implementation. Chunk 1 is shipped (`db7c529`, 2026-04-13) — no action needed there.
