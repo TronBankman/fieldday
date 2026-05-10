@@ -1,8 +1,36 @@
 import Link from "next/link";
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Fieldday",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  url: "https://fieldday.app",
+  description:
+    "Online registration, payment collection, scheduling, attendance, and parent communication for sports organizations. Flat $149/month, no transaction fees.",
+  offers: {
+    "@type": "Offer",
+    price: "149",
+    priceCurrency: "USD",
+    priceValidUntil: "2027-12-31",
+    availability: "https://schema.org/InStock",
+  },
+  provider: {
+    "@type": "Organization",
+    name: "Fieldday",
+    url: "https://fieldday.app",
+    email: "hello@fieldday.app",
+  },
+};
+
 export default function Home() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-[#2e2e36] bg-[rgba(13,13,15,0.88)] backdrop-blur-md">
         <div className="w-[min(1120px,calc(100%-2rem))] mx-auto flex items-center justify-between h-14">

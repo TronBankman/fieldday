@@ -3,7 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://fieldday.app"),
-  title: "Fieldday — Sports Org Management Without the Spreadsheets",
+  title: {
+    default: "Fieldday — Sports Org Management Without the Spreadsheets",
+    template: "%s | Fieldday",
+  },
   description:
     "Online registration, payment collection, scheduling, attendance, and parent communication — all in one place. Flat $149/month, no transaction fees.",
   keywords: [
@@ -15,6 +18,8 @@ export const metadata: Metadata = {
     "sports admin software",
     "no transaction fees",
     "TeamSnap alternative",
+    "sports registration platform",
+    "youth sports registration",
   ],
   openGraph: {
     title: "Fieldday — Sports Org Management Without the Spreadsheets",
@@ -24,6 +29,15 @@ export const metadata: Metadata = {
     locale: "en_CA",
     url: "https://fieldday.app",
     siteName: "Fieldday",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fieldday — Sports Org Management Without the Spreadsheets",
+    description:
+      "Registration, payments, attendance, scheduling — all in one place. Flat $149/month, no transaction fees.",
+  },
+  alternates: {
+    canonical: "https://fieldday.app",
   },
   robots: { index: true, follow: true },
 };
